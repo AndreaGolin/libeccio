@@ -6,12 +6,14 @@ import(
 	"bufio"
 	"time"
 	"flag"
+	"io"
 	// "compress/gzip"
 )
 
 var filepath string
 var toFile bool
 var toStdout bool
+var toInput string
 var toHex bool
 var toBin bool
 var nb []byte
@@ -28,6 +30,17 @@ func check(e error){
 	}
 }
 
+func checkEOF(e error)bool{
+	if e != nil{
+		if e == io.EOF {
+	        return true
+	    }else{
+			panic(e)
+		}
+	}
+	return false
+}
+
 /**
  * @brief      Parse the scritp call
  *
@@ -39,6 +52,8 @@ func parseFlags(){
 	flag.StringVar(&filepath, "file", "./deflibe.txt", "Target file path.")
 	// Get the toStdout flag. If true, the output will be sent to stdout
 	flag.BoolVar(&toStdout, "o", true, "If true, the program output will be sent to stdout.")
+	//Get the input flag
+	flag.StringVar(&toInput, "in", "", "Set the input file path.")
 	// Get the stdout to file flag
 	flag.BoolVar(&toFile, "f", false, "If true write the stdout to a file.")
 	// Get the stdout in hex form
@@ -76,7 +91,7 @@ func doDelete(path string)bool{
 }
 
 /**
- * @brief      Build the byte payload
+ * @brief      Build the byte payload. By default it will be filled with null bytes
  *
  * @param      bsize  The size in bytes of the payload
  *
@@ -113,15 +128,52 @@ func doToFile() (*os.File, int){
     return filepointer, byteCounter
 }
 
-
+/**
+ * @brief      Send the payload to stdout
+ *
+ * @return
+ */
 func sendToStdout(){
-
 	if toHex == true{
 		fmt.Printf("%x",payload)
-	}
-	if toBin == true{
+		fmt.Println()
+	}else if toBin == true{
 		fmt.Printf("%b", payload)
+		fmt.Println()
+	}else{
+		fmt.Printf("%s", payload)
+		fmt.Println()
 	}
+}
+
+func handleInput(){
+
+	// Get the input file dereferencing the flag pointer
+	file, err := os.Open(toInput)
+    check(err)
+
+    // Create a slice to handle the file byte
+    // It will be read byte by byte
+    data := make([]byte, 2)
+
+    // Point the reader to the file
+    reader := bufio.NewReader(file)
+
+    defer file.Close()
+
+    var byteCounter int = 0
+    for{
+    	n, err := reader.Read(data)
+    	byteCounter += n
+    	eofCheck := checkEOF(err)
+    	if eofCheck == true{
+    		fmt.Printf("The input file is %d bytes long.\n", byteCounter)
+    		break
+    	}
+        fmt.Printf("%X  --> %s\n", data[:n], data[:n])
+    }
+
+    
 }
 
 
@@ -130,10 +182,12 @@ func main(){
 	//Start timer
 	t1 := time.Now()
 
-	//Null byte payload
-	nb = []byte("\x00")
-
 	parseFlags()
+
+	if toInput != ""{
+		handleInput()
+		return
+	}
 
 	// Build the payload
 	payload = buildPayload(bsize)
@@ -155,6 +209,9 @@ func main(){
 	    defer filepointer.Close()
 	}
 
+	/**
+	 * Handle the toStdou flag
+	 */
 	if toStdout == true{
 		sendToStdout()
 	}
